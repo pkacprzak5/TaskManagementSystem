@@ -16,7 +16,9 @@ type Store interface {
 
 	GetTask(id int) (*Task, error)
 
-	UpdateTaskStatusByID(id int) error
+	UpdateTaskStatusByID(id int) (*Task, error)
+
+	GetTasksAssignedToUser(id int) ([]*Task, error)
 }
 
 type Storage struct {
@@ -70,15 +72,29 @@ func (s *Storage) CreateTask(task *Task) (*Task, error) {
 
 func (s *Storage) GetTask(id int) (*Task, error) {
 	var t Task
-	err := s.db.QueryRow("SELECT id, name, status, assigned_to FROM tasks WHERE id = ?", id).
-		Scan(&t.ID, &t.Name, &t.Status, &t.AssignedToID)
+	err := s.db.QueryRow("SELECT id, name, status, assignedToID, createdAt FROM tasks WHERE id = ?", id).
+		Scan(&t.ID, &t.Name, &t.Status, &t.AssignedToID, &t.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
 	return &t, err
 }
 
-func (s *Storage) UpdateTaskStatusByID(id int) error {
-	_, err := s.GetTask(id)
+func (s *Storage) UpdateTaskStatusByID(id int) (*Task, error) {
+	task, err := s.GetTask(id)
 	if err != nil {
-		return fmt.Errorf("Task with id %d does not exist", id)
+		return &Task{}, fmt.Errorf("Task with id %d does not exist", id)
+	}
+
+	switch task.Status {
+	case "TODO":
+		task.Status = "IN_PROGRESS"
+		break
+	case "IN_PROGRESS":
+		task.Status = "DONE"
+		break
+	case "DONE":
+		return nil, fmt.Errorf("Task with id %d is already done", id)
 	}
 
 	query := `
@@ -92,19 +108,38 @@ func (s *Storage) UpdateTaskStatusByID(id int) error {
 		WHERE id = ? AND status != 'DONE'; -- Prevent updating if already DONE
 	`
 
-	result, err := s.db.Exec(query, id)
+	_, err = s.db.Exec(query, id)
 	if err != nil {
-		return fmt.Errorf("failed to update task status: %w", err)
+		return &Task{}, fmt.Errorf("failed to update task status: %w", err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
+	return task, nil
+}
+
+func (s *Storage) GetTasksAssignedToUser(id int) ([]*Task, error) {
+	query := "SELECT id, name, status, assignedToID, createdAt FROM tasks WHERE assignedToID = ?"
+
+	rows, err := s.db.Query(query, id)
 	if err != nil {
-		return fmt.Errorf("failed to check affected rows: %w", err)
+		return nil, fmt.Errorf("failed to get tasks assigned to user with id %d: %w", id, err)
+	}
+	defer rows.Close()
+
+	var tasks []*Task
+	for rows.Next() {
+		var task Task
+		if err := rows.Scan(&task.ID, &task.Name, &task.Status, &task.AssignedToID, &task.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan task row: %w", err)
+		}
+		tasks = append(tasks, &task)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
 	}
 
-	if rowsAffected == 0 {
-		return fmt.Errorf("task status not updated, possibly already DONE or task not found")
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("no tasks assigned to user with id %d", id)
 	}
 
-	return nil
+	return tasks, nil
 }

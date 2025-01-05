@@ -23,8 +23,10 @@ func NewTaskService(store common.Store) *TaskService {
 }
 
 func (s *TaskService) RegisterRoutes(router *http.ServeMux) {
+	router.HandleFunc("GET /tasks", auth.WithJWTAuth(s.getTasksAssignedToUser, s.store))
 	router.HandleFunc("POST /tasks", auth.WithJWTAuth(s.handleCreateTask, s.store))
 	router.HandleFunc("GET /tasks/{id}", auth.WithJWTAuth(s.handleGetTask, s.store))
+	router.HandleFunc("POST /tasks/{id}", auth.WithJWTAuth(s.updateTaskStatus, s.store))
 }
 
 func (s *TaskService) handleCreateTask(w http.ResponseWriter, r *http.Request) {
@@ -98,4 +100,42 @@ func validateTaskPayload(task *common.Task, r *http.Request) error {
 	}
 
 	return nil
+}
+
+func (s *TaskService) updateTaskStatus(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		http.Error(w, "Missing 'id' parameter", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid 'id' parameter", http.StatusBadRequest)
+		return
+	}
+
+	task, err := s.store.UpdateTaskStatusByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, task)
+}
+
+func (s *TaskService) getTasksAssignedToUser(w http.ResponseWriter, r *http.Request) {
+	id, err := auth.GetUserIDFromRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	tasks, err := s.store.GetTasksAssignedToUser(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, tasks)
 }
