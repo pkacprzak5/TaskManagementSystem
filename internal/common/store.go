@@ -3,6 +3,7 @@ package common
 import (
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 type Store interface {
@@ -43,7 +44,7 @@ func (s *Storage) CreateUser(u *User) (*User, error) {
 func (s *Storage) GetUserByID(id int) (*User, error) {
 	var u User
 	err := s.db.QueryRow("SELECT id, firstName, lastName, email, password, createdAt FROM users WHERE id = ?", id).
-		Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password)
+		Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -51,23 +52,26 @@ func (s *Storage) GetUserByID(id int) (*User, error) {
 }
 
 func (s *Storage) CreateTask(task *Task) (*Task, error) {
-	rows, err := s.db.Exec("INSERT INTO tasks (name, status, project_id, assigned_to) VALUES (?, ?, ?, ?)",
-		task.Name, task.Status, task.ProjectID, task.AssignedToID)
+	rows, err := s.db.Exec("INSERT INTO tasks (name, status, assignedToID) VALUES (?, ?, ?)",
+		task.Name, task.Status, task.AssignedToID)
 	if err != nil {
+		fmt.Printf(err.Error())
 		return nil, err
 	}
 	id, err := rows.LastInsertId()
 	if err != nil {
+		fmt.Printf(err.Error())
 		return nil, err
 	}
 	task.ID = id
+	task.CreatedAt = time.Now()
 	return task, nil
 }
 
 func (s *Storage) GetTask(id int) (*Task, error) {
 	var t Task
-	err := s.db.QueryRow("SELECT id, name, status, project_id, assigned_to FROM tasks WHERE id = ?", id).
-		Scan(&t.ID, &t.Name, &t.Status, &t.ProjectID, &t.AssignedToID)
+	err := s.db.QueryRow("SELECT id, name, status, assigned_to FROM tasks WHERE id = ?", id).
+		Scan(&t.ID, &t.Name, &t.Status, &t.AssignedToID)
 	return &t, err
 }
 

@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"github.com/pkacprzak5/TaskManagementSystem/internal/common"
 	"log"
 	"net/http"
+	"time"
 )
 
 type APIServer struct {
@@ -15,7 +17,8 @@ func NewAPIServer(address string, store common.Store) *APIServer {
 	return &APIServer{address: address, store: store}
 }
 
-func (s *APIServer) Serve() {
+func (s *APIServer) Serve(ctx context.Context) error {
+	ch := make(chan error, 1)
 	router := http.NewServeMux()
 
 	usersService := NewUsersService(s.store)
@@ -24,7 +27,29 @@ func (s *APIServer) Serve() {
 	tasksService := NewTaskService(s.store)
 	tasksService.RegisterRoutes(router)
 
-	log.Println("Starting API server at", s.address)
+	server := &http.Server{
+		Addr:    s.address,
+		Handler: router,
+	}
 
-	log.Fatal(http.ListenAndServe(s.address, router))
+	go func() {
+		log.Println("Starting API server at", s.address)
+
+		err := server.ListenAndServe()
+		if err != nil {
+			ch <- err
+		}
+		close(ch)
+	}()
+
+	select {
+	case err := <-ch:
+		return err
+	case <-ctx.Done():
+		log.Println("Received shutdown signal, shutting down the server...")
+		timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		return server.Shutdown(timeout)
+	}
 }

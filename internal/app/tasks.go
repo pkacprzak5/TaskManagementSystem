@@ -12,7 +12,6 @@ import (
 )
 
 var errNameRequired = errors.New("name is required")
-var errProjectIDRequired = errors.New("project id is required")
 var errUserIDRequired = errors.New("user id is required")
 
 type TaskService struct {
@@ -44,7 +43,7 @@ func (s *TaskService) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateTaskPayload(&payload); err != nil {
+	if err := validateTaskPayload(&payload, r); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -81,17 +80,21 @@ func (s *TaskService) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusOK, task)
 }
 
-func validateTaskPayload(task *common.Task) error {
-	if task.Name == "" {
-		return errNameRequired
-	}
-
-	if task.ProjectID == 0 {
-		return errProjectIDRequired
+func validateTaskPayload(task *common.Task, r *http.Request) error {
+	if task.Status == "" {
+		task.Status = "TODO"
 	}
 
 	if task.AssignedToID == 0 {
-		return errUserIDRequired
+		id, err := auth.GetUserIDFromRequest(r)
+		if err != nil {
+			return errUserIDRequired
+		}
+		task.AssignedToID = int64(id)
+	}
+
+	if task.Name == "" {
+		return errNameRequired
 	}
 
 	return nil

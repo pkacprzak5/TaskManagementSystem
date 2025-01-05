@@ -10,7 +10,6 @@ type Task struct {
 	ID           int64     `json:"id" :"id"`
 	Name         string    `json:"name" :"name"`
 	Status       string    `json:"status" :"status"`
-	ProjectID    int64     `json:"project_id" :"project_id"`
 	AssignedToID int64     `json:"assigned_to_id" :"assigned_to_id"`
 	CreatedAt    time.Time `json:"created_at" :"created_at"`
 }

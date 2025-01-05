@@ -13,25 +13,13 @@ import (
 
 func WithJWTAuth(handlerFunc http.HandlerFunc, store common.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tokenString := GetTokenFromRequest(r)
-
-		token, err := validateJWT(tokenString)
+		userID, err := GetUserIDFromRequest(r)
 		if err != nil {
-			log.Println("failed to authenticate token")
 			permissionDenied(w)
 			return
 		}
 
-		if !token.Valid {
-			log.Println("failed to authenticate token")
-			permissionDenied(w)
-			return
-		}
-
-		claims := token.Claims.(jwt.MapClaims)
-		userID := claims["userID"].(int)
-
-		_, err = store.GetUserByID(userID)
+		_, err = store.GetUserByID(int(userID))
 		if err != nil {
 			fmt.Println("failed to get user")
 			permissionDenied(w)
@@ -40,6 +28,25 @@ func WithJWTAuth(handlerFunc http.HandlerFunc, store common.Store) http.HandlerF
 
 		handlerFunc(w, r)
 	}
+}
+
+func GetUserIDFromRequest(r *http.Request) (int, error) {
+	tokenString := GetTokenFromRequest(r)
+
+	token, err := validateJWT(tokenString)
+	if err != nil {
+		log.Println("failed to authenticate token")
+		return 0, err
+	}
+
+	if !token.Valid {
+		log.Println("failed to authenticate token")
+		return 0, err
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	userID := claims["userID"].(float64)
+	return int(userID), nil
 }
 
 func GetTokenFromRequest(r *http.Request) string {
