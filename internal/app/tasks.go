@@ -1,14 +1,15 @@
-package store
+package app
 
 import (
+	"github.com/pkacprzak5/TaskManagementSystem/internal/common"
 	"net/http"
 )
 
 type TaskService struct {
-	store Store
+	store common.Store
 }
 
-func NewTaskService(store Store) *TaskService {
+func NewTaskService(store common.Store) *TaskService {
 	return &TaskService{store: store}
 }
 
