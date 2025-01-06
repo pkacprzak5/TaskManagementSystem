@@ -36,5 +36,9 @@ func main() {
 
 	store := common.NewStore(db)
 	api := app.NewAPIServer(port, store)
-	api.Serve(ctx)
+	err = api.Serve(ctx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
